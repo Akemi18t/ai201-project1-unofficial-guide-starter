@@ -9,8 +9,7 @@
 
 ## Domain
 
-<!-- What domain did you choose? Why is this knowledge valuable and hard to find through official channels? -->
-
+Off-campus housing experiences for UDC students. This knowledge is valuable because official UDC channels only provide on-campus housing information. Students rely on word-of-mouth, Reddit, and Google Reviews to find honest information about nearby apartments — this system makes that scattered knowledge searchable.
 ---
 
 ## Documents
@@ -20,17 +19,16 @@
 
 | # | Source | Description | URL or location |
 |---|--------|-------------|-----------------|
-| 1 | | | |
-| 2 | | | |
-| 3 | | | |
-| 4 | | | |
-| 5 | | | |
-| 6 | | | |
-| 7 | | | |
-| 8 | | | |
-| 9 | | | |
-| 10 | | | |
-
+1. van_ness_apartments.txt - Student review of Van Ness area apartments
+2. tenleytown_housing.txt - Review of Tenleytown area housing
+3. reddit_udc_housing_1.txt - Reddit post about off-campus living near Van Ness
+4. reddit_udc_housing_2.txt - Reddit thread about UDC off-campus housing options
+5. google_review_van_ness_1.txt - Google review of Van Ness apartment complex
+6. google_review_tenleytown_1.txt - Google review of Tenleytown housing
+7. housing_tips_udc.txt - Student housing tips shared on Discord
+8. connecticut_ave_review.txt - Review of Connecticut Avenue apartments
+9. albemarle_street_housing.txt - Student review of Albemarle Street housing
+10. udc_housing_facebook_group.txt - Facebook group posts about UDC housing
 ---
 
 ## Chunking Strategy
@@ -40,11 +38,11 @@
      numbers fit the structure of your documents.
      A review-heavy corpus warrants different chunking than a long FAQ. -->
 
-**Chunk size:**
+**Chunk size:300 characters**
 
-**Overlap:**
+**Overlap:50 characters**
 
-**Reasoning:**
+**Reasoning:Documents are short reviews (1-3 sentences each). 300 characters captures a complete thought without merging unrelated topics. 50-character overlap prevents splitting key facts across boundaries.**
 
 ---
 
@@ -56,11 +54,11 @@
      would you weigh in choosing a different embedding model — context length, multilingual
      support, accuracy on domain-specific text, latency? -->
 
-**Embedding model:**
+**Embedding model:all-MiniLM-L6-v2 via sentence-transformers (runs locally, no API key needed)**
 
-**Top-k:**
+**Top-k: 4 chunks per query**
 
-**Production tradeoff reflection:**
+**Production tradeoff reflection:would consider OpenAI embeddings for better accuracy, or multilingual models if serving international students. Tradeoffs include cost, latency, and context length.**
 
 ---
 
@@ -73,12 +71,11 @@
 
 | # | Question | Expected answer |
 |---|----------|-----------------|
-| 1 | | |
-| 2 | | |
-| 3 | | |
-| 4 | | |
-| 5 | | |
-
+1. Q: What are apartments like near Van Ness? Expected: Close to UDC metro, management issues ~$1800/month
+2. Q: When should I start looking for housing near UDC? Expected: February for fall semester
+3. Q: What is the best restaurant in DC? Expected: System declines to answer
+4. Q: Are there any mold or maintenance problems in UDC off-campus housing? Expected: Mold reports on Connecticut Ave
+5. Q: How much does it cost to rent near UDC? Expected: $1500-$2200 depending on area
 ---
 
 ## Anticipated Challenges
@@ -87,10 +84,8 @@
      Consider: noisy or inconsistent documents, missing source attribution, off-topic
      retrieval, chunks that split key information across boundaries. -->
 
-1.
-
-2.
-
+1. Short documents may produce chunks with too little context for accurate semantic matching
+2. Generated documents lack real URLs which weakens source attribution credibility
 ---
 
 ## Architecture
@@ -100,7 +95,7 @@
      Label each stage with the tool or library you're using.
      You can use ASCII art, a Mermaid diagram, or embed a sketch as an image.
      You'll use this diagram as context when prompting AI tools to implement each stage. -->
-
+Document Ingestion (ingest.py) → Chunking (300 chars, 50 overlap) → Embedding (all-MiniLM-L6-v2) + Vector Store (ChromaDB) → Retrieval (semantic search, top-4) → Generation (Groq llama-3.3-70b-versatile) → Gradio UI
 ---
 
 ## AI Tool Plan
@@ -116,7 +111,10 @@
      with my specified chunk size and overlap" is a plan. -->
 
 **Milestone 3 — Ingestion and chunking:**
+I gave Claude the Chunking Strategy section of this planning.md (chunk size 300, overlap 50) and the list of 10 .txt documents. I asked it to implement ingest.py with a load_documents() function that reads all .txt files from the documents folder and a chunk_document() function using a sliding window of 300 characters with 50-character overlap. I verified the output by running it and confirming 19 chunks were produced across 10 documents.
 
 **Milestone 4 — Embedding and retrieval:**
+I gave Claude the Retrieval Approach section (all-MiniLM-L6-v2, ChromaDB, top-k=4) and asked it to implement retriever.py with embed_and_store() and retrieve() functions. I verified by querying "What are apartments like near Van Ness?" and confirming relevant chunks came back with distance scores below 0.5.
 
 **Milestone 5 — Generation and interface:**
+I gave Claude the grounding requirement (answer only from retrieved documents, cite sources) and asked it to implement generator.py using Groq llama-3.3-70b-versatile and app.py using Gradio. I verified grounding was working by asking an out-of-scope question ("What is the best restaurant in DC?") and confirming the system declined to answer rather than hallucinating.

@@ -4,7 +4,8 @@
 > Complete each section *after* you've built and tested the corresponding part of your system.
 > Do not write placeholder text — if a section isn't done yet, leave it blank and come back.
 > Every section below is required for submission. One-liners will not receive full credit.
-
+A RAG (Retrieval-Augmented Generation) system that makes student-generated 
+off-campus housing knowledge searchable and answerable for UDC students.
 ---
 
 ## Domain
@@ -13,6 +14,11 @@
      Why is this knowledge valuable, and why is it hard to find through official channels?
      Example: "Student reviews of CS professors at [university] — useful because official
      course descriptions don't reflect teaching style, exam difficulty, or workload." -->
+     Off-campus housing experiences for UDC students near Van Ness, Tenleytown, 
+Connecticut Ave, and Albemarle Street in Washington DC. This knowledge is 
+valuable because official UDC channels only cover on-campus housing. Students 
+traditionally rely on word-of-mouth, Reddit, and Google Reviews — this system 
+makes that scattered knowledge instantly searchable.
 
 ---
 
@@ -24,16 +30,16 @@
 
 | # | Source | Type | URL or file path |
 |---|--------|------|-----------------|
-| 1 | | | |
-| 2 | | | |
-| 3 | | | |
-| 4 | | | |
-| 5 | | | |
-| 6 | | | |
-| 7 | | | |
-| 8 | | | |
-| 9 | | | |
-| 10 | | | |
+| 1 | van_ness_apartments.txt | Student review of Van Ness area apartments| |
+| 2 | tenleytown_housing.txt| Review of Tenleytown area housing | |
+| 3 | reddit_udc_housing_1.txt| Reddit post about off-campus living near Van Ness | |
+| 4 |  reddit_udc_housing_2.txt| Reddit thread about UDC off-campus housing| |
+| 5 | google_review_van_ness_1.txt| Google review of Van Ness apartment complex | |
+| 6 |google_review_tenleytown_1.txt  | Google review of Tenleytown housing| |
+| 7 | housing_tips_udc.txt| Student housing tips shared on Discord| |
+| 8 |connecticut_ave_review.txt | Review of Connecticut Avenue apartments | |
+| 9 | albemarle_street_housing.txt|  Student review of Albemarle Street housing| |
+| 10 | udc_housing_facebook_group.txt|Facebook group posts about UDC housing | |
 
 ---
 
@@ -46,13 +52,15 @@
      - Any preprocessing you did before chunking (e.g., stripping HTML, removing headers)
      - What your final chunk count was across all documents -->
 
-**Chunk size:**
+**Chunk size: 300 characters**
 
-**Overlap:**
+**Overlap:50 characters**
 
-**Why these choices fit your documents:**
+**Why these choices fit your documents:The documents are short reviews (1-3 sentences each). 300 characters captures 
+one complete thought without merging unrelated topics. The 50-character overlap 
+prevents key facts from being split across chunk boundaries.**
 
-**Final chunk count:**
+**Final chunk count:19 chunks across 10 documents**
 
 ---
 
@@ -64,9 +72,14 @@
      Consider: context length limits, multilingual support, accuracy on domain-specific text,
      latency, and local vs. API-hosted. -->
 
-**Model used:**
+**Model used: All-MiniLM-L6-v2 via sentence-transformers (runs locally, no API key).**
 
-**Production tradeoff reflection:**
+**Production tradeoff reflection:- Cost: local models are free; OpenAI embeddings cost per token
+- Context length: all-MiniLM-L6-v2 handles 256 tokens; larger models handle more
+- Multilingual: would need a multilingual model for non-English student reviews
+- Accuracy: larger models like text-embedding-3-large would improve retrieval 
+  quality at higher cost and latency
+**
 
 ---
 
@@ -79,9 +92,14 @@
      Do not just say "I told it to use the documents" — show the actual instruction or explain
      the mechanism. -->
 
-**System prompt grounding instruction:**
+**System prompt grounding instruction:Answer the user's question using ONLY the document excerpts provided below. 
+Do not draw on outside knowledge. Always mention which source document the 
+answer comes from. If the answer is not in the provided documents, say clearly: 
+I don't have enough information in my documents to answer that.**
 
-**How source attribution is surfaced in the response:**
+**How source attribution is surfaced in the response:The LLM is instructed to name the source document in its response 
+text, and the Gradio interface displays a separate Sources field that 
+programmatically lists the filename of every retrieved chunk.**
 
 ---
 
@@ -93,11 +111,11 @@
 
 | # | Question | Expected answer | System response (summarized) | Retrieval quality | Response accuracy |
 |---|----------|-----------------|------------------------------|-------------------|-------------------|
-| 1 | | | | | |
-| 2 | | | | | |
-| 3 | | | | | |
-| 4 | | | | | |
-| 5 | | | | | |
+| 1 | What are apartments like near Van Ness? | Close to UDC metro, management issues, ~$1800/month | Described location, management issues, noise — cited van_ness_apartments.txt | Relevant | Accurate |
+| 2 | When should I start looking for housing near UDC? | February for fall semester | Correctly stated February, apartments go fast — cited housing_tips_udc.txt | Relevant | Accurate |
+| 3 | What is the best restaurant in DC? | System should decline | Declined, explained documents only cover housing | Relevant | Accurate |
+| 4 | Are there any mold or maintenance problems? | Mold reports on Connecticut Ave | Cited mold on Connecticut Ave and security deposit issues | Relevant | Accurate |
+| 5 | How much does it cost to rent near UDC? | $1500-$2200 depending on area | Correctly cited $1500-$2200 range across multiple sources | Relevant | Accurate |
 
 **Retrieval quality:** Relevant / Partially relevant / Off-target  
 **Response accuracy:** Accurate / Partially accurate / Inaccurate
@@ -117,13 +135,20 @@
      "The embedding model treated the professor's nickname as out-of-vocabulary and returned
      results from an unrelated review" is an explanation. -->
 
-**Question that failed:**
+**Question that failed:** "What is the best restaurant in DC?"
 
-**What the system returned:**
+**What the system returned:** Correctly declined to answer, but still 
+retrieved 3 housing chunks before deciding — sources field showed 
+van_ness_apartments.txt and others even though none were relevant.
 
-**Root cause (tied to a specific pipeline stage):**
+**Root cause (tied to a specific pipeline stage):** Retrieval stage issue. 
+The retriever always returns top-4 chunks with no distance threshold filter. 
+Out-of-scope queries still consume retrieval resources even when all matches 
+are weak.
 
-**What you would change to fix it:**
+**What you would change to fix it:** Add a distance threshold in retrieve() 
+— if all chunks have cosine distance above 0.6, return empty list. The 
+generator already handles empty lists correctly with a refusal message.
 
 ---
 
@@ -132,10 +157,16 @@
 <!-- Reflect on how planning.md shaped your implementation.
      Answer both questions with at least 2–3 sentences each. -->
 
-**One way the spec helped you during implementation:**
+**One way the spec helped you during implementation:** Writing the chunk size 
+(300) and overlap (50) in planning.md before coding made ingest.py 
+straightforward to implement. There were no decisions to make mid-coding — 
+I just translated the spec directly into the sliding window loop.
 
-**One way your implementation diverged from the spec, and why:**
-
+**One way your implementation diverged from the spec, and why:** The spec 
+did not anticipate that only 19 chunks would be produced from 10 short 
+documents. In hindsight the spec should have estimated chunk count based 
+on actual document length. Smaller 150-character chunks might have produced 
+more granular retrieval.
 ---
 
 ## AI Usage
@@ -150,13 +181,17 @@
      chunk size from 500 to 200 because my documents are short reviews, not long guides." -->
 
 **Instance 1**
-
-- *What I gave the AI:*
-- *What it produced:*
-- *What I changed or overrode:*
+- *What I gave the AI:* The Chunking Strategy section of planning.md 
+  (chunk size 300, overlap 50) and the list of 10 .txt document filenames.
+- *What it produced:* ingest.py with load_documents() and chunk_document() 
+  using a sliding window of 300 characters with 50-character overlap.
+- *What I changed or overrode:* Verified output produced 19 chunks and 
+  confirmed content was readable. No changes needed.
 
 **Instance 2**
-
-- *What I gave the AI:*
-- *What it produced:*
-- *What I changed or overrode:*
+- *What I gave the AI:* The grounding requirement (answer only from retrieved 
+  documents, cite sources) and Gradio interface requirement (Answer + Sources fields).
+- *What it produced:* generator.py with grounding system prompt and app.py 
+  with Gradio UI.
+- *What I changed or overrode:* Tested by asking an out-of-scope question 
+  to confirm grounding worked. System declined correctly with no changes needed.
